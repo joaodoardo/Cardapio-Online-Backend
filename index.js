@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const app = express();
 
 const prisma = new PrismaClient();
-const SECRET = 'seusegredoseguro'; // troque isso em produção
+const SECRET = 'seusegredoseguro'; 
 app.use(express.json());
 
 // Middleware para proteger rotas de admin
@@ -94,6 +94,21 @@ app.put('/admin/item/:id', authenticateToken, async (req, res) => {
     });
 
     res.json(item);
+});
+
+// Excluir item do cardápio
+app.delete('/admin/item/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        await prisma.item.delete({
+            where: { id: Number(id) }
+        });
+
+        res.json({ message: 'Item excluído com sucesso.' });
+    } catch (error) {
+        res.status(404).json({ error: 'Item não encontrado ou já excluído.' });
+    }
 });
 
 // Inicializar servidor
