@@ -1,3 +1,4 @@
+const cors = require('cors');
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
@@ -6,6 +7,7 @@ const app = express();
 
 const prisma = new PrismaClient();
 const SECRET = 'seusegredoseguro'; 
+app.use(cors());
 app.use(express.json());
 
 // Middleware para proteger rotas de admin
@@ -23,10 +25,41 @@ function authenticateToken(req, res, next) {
 
 // Rotas públicas (clientes)
 
-// Listar cardápio
-app.get('/cardapio', async (req, res) => {
-    const itens = await prisma.item.findMany();
-    res.json(itens);
+// Listar todas as categorias
+app.get('/categorias', async (req, res) => {
+    try {
+        const categorias = await prisma.categoria.findMany({
+            select: {
+                id: true,
+                nome: true
+            }
+        });
+        res.json(categorias);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao buscar categorias.' });
+    }
+});
+
+// Listar itens de uma categoria específica
+app.get('/categorias/:id/itens', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const categoria = await prisma.categoria.findUnique({
+            where: { id: Number(id) },
+            include: {
+                itens: true
+            }
+        });
+
+        if (!categoria) {
+            return res.status(404).json({ error: 'Categoria não encontrada.' });
+        }
+
+        res.json(categoria.itens);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao buscar itens da categoria.' });
+    }
 });
 
 // Fazer pedido
@@ -54,6 +87,22 @@ app.post('/pedido', async (req, res) => {
     res.status(201).json({ message: 'Pedido realizado com sucesso!', pedidoId: pedido.id });
 });
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Rotas administrativas
 
 // Login
@@ -69,18 +118,49 @@ app.post('/admin/login', async (req, res) => {
     res.json({ token });
 });
 
-// Adicionar item ao cardápio
-app.post('/admin/item', authenticateToken, async (req, res) => {
-    const { nome, descricao, preco } = req.body;
-    if (!nome || !preco) {
-        return res.status(400).json({ error: 'Nome e preço são obrigatórios.' });
+// Adicionar categoria
+app.post('/admin/categoria', authenticateToken, async (req, res) => {
+    const { nome } = req.body;
+
+    if (!nome) {
+        return res.status(400).json({ error: 'Nome da categoria é obrigatório.' });
     }
 
-    const item = await prisma.item.create({
-        data: { nome, descricao, preco }
-    });
+    try {
+        const categoria = await prisma.categoria.create({
+            data: { nome }
+        });
 
-    res.status(201).json(item);
+        res.status(201).json(categoria);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao criar categoria.' });
+    }
+});
+
+// Adicionar item ao cardápio (corrigido com categoriaId)
+app.post('/admin/item', authenticateToken, async (req, res) => {
+    const { nome, descricao, preco, categoriaId } = req.body;
+
+    if (!nome || !preco || !categoriaId) {
+        return res.status(400).json({ error: 'Nome, preço e categoria são obrigatórios.' });
+    }
+
+    try {
+        const item = await prisma.item.create({
+            data: {
+                nome,
+                descricao,
+                preco,
+                categoria: {
+                    connect: { id: Number(categoriaId) }
+                }
+            }
+        });
+
+        res.status(201).json(item);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao criar item. Verifique o ID da categoria.' });
+    }
 });
 
 // Editar item do cardápio

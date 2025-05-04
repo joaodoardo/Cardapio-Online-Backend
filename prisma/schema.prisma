@@ -13,12 +13,20 @@ model Admin {
   senha String
 }
 
+model Categoria {
+  id    Int     @id @default(autoincrement())
+  nome  String
+  itens Item[]
+}
+
 model Item {
   id          Int     @id @default(autoincrement())
   nome        String
   descricao   String?
   preco       Float
   pedidosItem PedidoItem[]
+  categoria   Categoria @relation(fields: [categoriaId], references: [id])
+  categoriaId Int
 }
 
 model Pedido {
