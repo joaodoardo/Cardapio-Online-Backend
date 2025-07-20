@@ -47,3 +47,11 @@ model PedidoItem {
   itemId   Int
   quantidade Int
 }
+
+model Horarios {
+  diaDaSemana Int     @id
+  nome        String
+  aberto      Boolean
+  inicio      String
+  fim         String
+}

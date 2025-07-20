@@ -87,6 +87,25 @@ app.post('/pedido', async (req, res) => {
     res.status(201).json({ message: 'Pedido realizado com sucesso!', pedidoId: pedido.id });
 });
 
+// ======================================================================
+// ✅ INÍCIO DA ADIÇÃO - ROTA PÚBLICA DE HORÁRIOS
+// ======================================================================
+// Rota para buscar os horários de funcionamento (pública)
+app.get('/horarios', async (req, res) => {
+    try {
+        const horarios = await prisma.horarios.findMany({
+            orderBy: { diaDaSemana: 'asc' }
+        });
+        res.json(horarios);
+    } catch (error) {
+        console.error("Erro ao buscar horários:", error);
+        res.status(500).json({ error: 'Erro ao buscar horários de funcionamento.' });
+    }
+});
+// ======================================================================
+// ✅ FIM DA ADIÇÃO
+// ======================================================================
+
 
 
 
@@ -191,6 +210,72 @@ app.delete('/admin/item/:id', authenticateToken, async (req, res) => {
     }
 });
 
+
+
+
+
+// ======================================================================
+// ✅ INÍCIO DA ADIÇÃO - ROTA PROTEGIDA DE HORÁRIOS
+// ======================================================================
+// Rota para atualizar os horários de funcionamento (protegida)
+app.post('/admin/horarios', authenticateToken, async (req, res) => {
+    const novosHorarios = req.body;
+
+    if (!Array.isArray(novosHorarios) || novosHorarios.length !== 7) {
+        return res.status(400).json({ error: 'Formato de dados inválido. Esperado um array com 7 dias.' });
+    }
+
+    try {
+        const operacoesDeUpsert = novosHorarios.map(dia => 
+            prisma.horarios.upsert({
+                where: { diaDaSemana: dia.diaDaSemana },
+                update: {
+                    nome: dia.nome,
+                    aberto: dia.aberto,
+                    inicio: dia.inicio,
+                    fim: dia.fim,
+                },
+                create: {
+                    diaDaSemana: dia.diaDaSemana,
+                    nome: dia.nome,
+                    aberto: dia.aberto,
+                    inicio: dia.inicio,
+                    fim: dia.fim,
+                },
+            })
+        );
+
+        await prisma.$transaction(operacoesDeUpsert);
+
+        res.status(200).json({ message: 'Horários salvos com sucesso!' });
+
+    } catch (error) {
+        console.error("Erro ao salvar horários:", error);
+        res.status(500).json({ error: 'Erro ao salvar horários.' });
+    }
+});
+// ======================================================================
+// ✅ FIM DA ADIÇÃO
+// ======================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Inicializar servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
@@ -208,4 +293,30 @@ app.listen(PORT, async () => {
         });
         console.log('Admin padrão criado: admin@pizzaria.com / admin123');
     }
+
+    // ======================================================================
+    // ✅ INÍCIO DA ADIÇÃO - LÓGICA PARA POPULAR HORÁRIOS
+    // ======================================================================
+    // Inicializar horários padrão se não existirem
+    const totalHorarios = await prisma.horarios.count();
+    if (totalHorarios === 0) {
+        console.log('Nenhum horário encontrado. Criando horários padrão...');
+        const defaultSchedule = [
+            { diaDaSemana: 0, nome: 'Domingo', aberto: true, inicio: '18:00', fim: '23:00' },
+            { diaDaSemana: 1, nome: 'Segunda', aberto: false, inicio: '18:00', fim: '22:00' },
+            { diaDaSemana: 2, nome: 'Terça', aberto: true, inicio: '18:00', fim: '22:00' },
+            { diaDaSemana: 3, nome: 'Quarta', aberto: true, inicio: '18:00', fim: '22:00' },
+            { diaDaSemana: 4, nome: 'Quinta', aberto: true, inicio: '18:00', fim: '22:00' },
+            { diaDaSemana: 5, nome: 'Sexta', aberto: true, inicio: '18:00', fim: '23:00' },
+            { diaDaSemana: 6, nome: 'Sábado', aberto: true, inicio: '18:00', fim: '23:00' },
+        ];
+        
+        await prisma.horarios.createMany({
+            data: defaultSchedule,
+        });
+        console.log('Horários padrão criados com sucesso.');
+    }
+    // ======================================================================
+    // ✅ FIM DA ADIÇÃO
+    // ======================================================================
 });
