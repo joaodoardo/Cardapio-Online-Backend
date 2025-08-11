@@ -37,6 +37,7 @@ model Pedido {
   observacoes  String?
   itens        PedidoItem[]
   criadoEm     DateTime      @default(now())
+  status       Int           @default(1)
 }
 
 model PedidoItem {
