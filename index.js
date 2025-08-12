@@ -90,6 +90,95 @@ app.post('/pedido', async (req, res) => {
 });
 
 
+
+
+
+
+
+
+
+// ======================================================================
+// ✅ INÍCIO DA ADIÇÃO - ROTAS PARA GERENCIAR PEDIDOS
+// ======================================================================
+
+// Listar todos os pedidos com status 1, 2 ou 3
+app.get('/admin/pedidos', authenticateToken, async (req, res) => {
+    try {
+        const pedidos = await prisma.pedido.findMany({
+            where: {
+                status: {
+                    in: [1, 2, 3] // Busca apenas pedidos "Em análise", "Em produção" ou "Pronto para entrega"
+                }
+            },
+            include: {
+                itens: { // Inclui os itens de cada pedido
+                    include: {
+                        item: true // Inclui os detalhes de cada item (nome, preço, etc.)
+                    }
+                }
+            },
+            orderBy: {
+                criadoEm: 'asc' // Ordena pelos mais antigos primeiro
+            }
+        });
+        res.json(pedidos);
+    } catch (error) {
+        console.error("Erro ao buscar pedidos:", error);
+        res.status(500).json({ error: 'Erro ao buscar pedidos.' });
+    }
+});
+
+// Atualizar o status de um pedido
+app.put('/admin/pedidos/:id/status', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status || ![1, 2, 3, 4].includes(status)) { // Adicionamos 4 como um status de "finalizado"
+        return res.status(400).json({ error: 'Status inválido.' });
+    }
+
+    try {
+        const pedidoAtualizado = await prisma.pedido.update({
+            where: { id: Number(id) },
+            data: { status: Number(status) }
+        });
+        res.json(pedidoAtualizado);
+    } catch (error) {
+        console.error("Erro ao atualizar status do pedido:", error);
+        res.status(404).json({ error: 'Pedido não encontrado.' });
+    }
+});
+
+// ======================================================================
+// ✅ FIM DA ADIÇÃO
+// ======================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // ======================================================================
 // ✅ INÍCIO DA ADIÇÃO - ROTA PÚBLICA DE HORÁRIOS
 // ======================================================================
