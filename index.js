@@ -98,6 +98,92 @@ app.post('/pedido', async (req, res) => {
 
 
 // ======================================================================
+// ✅ INÍCIO DA ADIÇÃO - ROTA PÚBLICA PARA STATUS DE PEDIDO DO CLIENTE
+// ======================================================================
+// Buscar pedidos de um cliente pelo número de telefone
+app.get('/pedidos/cliente/:telefone', async (req, res) => {
+    const { telefone } = req.params;
+
+    if (!telefone) {
+        return res.status(400).json({ error: 'Número de telefone é obrigatório.' });
+    }
+
+    try {
+        const pedidosDoCliente = await prisma.pedido.findMany({
+            where: {
+                telefone: telefone
+            },
+            // Incluímos os itens para que o cliente possa ver o que pediu
+            include: {
+                itens: {
+                    include: {
+                        item: {
+                            select: {
+                                nome: true,
+                                preco: true
+                            }
+                        }
+                    }
+                }
+            },
+            // Ordenamos pelos mais recentes primeiro
+            orderBy: {
+                criadoEm: 'desc'
+            },
+            // Limitamos a busca aos últimos 10 pedidos para não sobrecarregar
+            take: 10
+        });
+
+        if (!pedidosDoCliente || pedidosDoCliente.length === 0) {
+            return res.status(404).json({ message: 'Nenhum pedido encontrado para este número.' });
+        }
+
+        res.json(pedidosDoCliente);
+
+    } catch (error) {
+        console.error("Erro ao buscar pedidos do cliente:", error);
+        res.status(500).json({ error: 'Erro interno ao buscar seus pedidos.' });
+    }
+});
+// ======================================================================
+// ✅ FIM DA ADIÇÃO
+// ======================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ======================================================================
 // ✅ INÍCIO DA ADIÇÃO - ROTAS PARA GERENCIAR PEDIDOS
 // ======================================================================
 
