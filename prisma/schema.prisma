@@ -38,6 +38,8 @@ model Pedido {
   itens        PedidoItem[]
   criadoEm     DateTime      @default(now())
   status       Int           @default(1)
+  metodoPagamento String?
+  trocoPara       Float?
 }
 
 model PedidoItem {

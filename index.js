@@ -62,11 +62,11 @@ app.get('/categorias/:id/itens', async (req, res) => {
     }
 });
 
-// Fazer pedido
 app.post('/pedido', async (req, res) => {
-    const { nomeCliente, telefone, endereco, observacoes, itens } = req.body;
-    if (!nomeCliente || !telefone || !endereco || !Array.isArray(itens) || itens.length === 0) {
-        return res.status(400).json({ error: 'Dados do pedido inválidos.' });
+    const { nomeCliente, telefone, endereco, observacoes, itens, metodoPagamento, trocoPara } = req.body;
+    
+    if (!nomeCliente || !telefone || !endereco || !Array.isArray(itens) || itens.length === 0 || !metodoPagamento) {
+        return res.status(400).json({ error: 'Dados do pedido inválidos. Informações do cliente, itens e método de pagamento são obrigatórios.' });
     }
 
     const pedido = await prisma.pedido.create({
@@ -75,6 +75,8 @@ app.post('/pedido', async (req, res) => {
             telefone,
             endereco,
             observacoes,
+            metodoPagamento,
+            trocoPara: trocoPara ? parseFloat(trocoPara) : null,
             itens: {
                 create: itens.map(item => ({
                     itemId: item.itemId,
@@ -86,6 +88,7 @@ app.post('/pedido', async (req, res) => {
 
     res.status(201).json({ message: 'Pedido realizado com sucesso!', pedidoId: pedido.id });
 });
+
 
 // ======================================================================
 // ✅ INÍCIO DA ADIÇÃO - ROTA PÚBLICA DE HORÁRIOS
@@ -156,7 +159,7 @@ app.post('/admin/categoria', authenticateToken, async (req, res) => {
     }
 });
 
-// Adicionar item ao cardápio (corrigido com categoriaId)
+// Adicionar item ao cardápio
 app.post('/admin/item', authenticateToken, async (req, res) => {
     const { nome, descricao, preco, categoriaId } = req.body;
 
@@ -184,12 +187,12 @@ app.post('/admin/item', authenticateToken, async (req, res) => {
 
 // Editar item do cardápio
 app.put('/admin/item/:id', authenticateToken, async (req, res) => {
-    const { nome, descricao, preco } = req.body;
+    const { nome, descricao, preco, } = req.body;
     const { id } = req.params;
 
     const item = await prisma.item.update({
         where: { id: Number(id) },
-        data: { nome, descricao, preco }
+        data: { nome, descricao, preco, }
     });
 
     res.json(item);
