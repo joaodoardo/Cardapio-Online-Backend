@@ -48,7 +48,9 @@ app.get('/categorias/:id/itens', async (req, res) => {
         const categoria = await prisma.categoria.findUnique({
             where: { id: Number(id) },
             include: {
-                itens: true
+                itens: {
+                    where: { disponivel: true }
+                }
             }
         });
 
@@ -360,14 +362,26 @@ app.post('/admin/item', authenticateToken, async (req, res) => {
     }
 });
 
+// Lista todos os itens pro admin
+app.get('/admin/items', authenticateToken, async (req, res) => {
+    try {
+        const items = await prisma.item.findMany({
+            orderBy: { nome: 'asc' } 
+        });
+        res.json(items);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao buscar itens.' });
+    }
+});
+
 // Editar item do cardápio
 app.put('/admin/item/:id', authenticateToken, async (req, res) => {
-    const { nome, descricao, preco, } = req.body;
+    const { nome, descricao, preco, disponivel } = req.body;
     const { id } = req.params;
 
     const item = await prisma.item.update({
         where: { id: Number(id) },
-        data: { nome, descricao, preco, }
+        data: { nome, descricao, preco, disponivel }
     });
 
     res.json(item);
@@ -385,6 +399,31 @@ app.delete('/admin/item/:id', authenticateToken, async (req, res) => {
         res.json({ message: 'Item excluído com sucesso.' });
     } catch (error) {
         res.status(404).json({ error: 'Item não encontrado ou já excluído.' });
+    }
+});
+
+// Listar todos os pedidos finalizados (histórico)
+app.get('/admin/pedidos/historico', authenticateToken, async (req, res) => {
+    try {
+        const pedidos = await prisma.pedido.findMany({
+            where: {
+                status: 4
+            },
+            include: {
+                itens: {
+                    include: {
+                        item: true
+                    }
+                }
+            },
+            orderBy: {
+                criadoEm: 'desc'
+            }
+        });
+        res.json(pedidos);
+    } catch (error) {
+        console.error("Erro ao buscar histórico de pedidos:", error);
+        res.status(500).json({ error: 'Erro ao buscar histórico de pedidos.' });
     }
 });
 

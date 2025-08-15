@@ -24,6 +24,7 @@ model Item {
   nome        String
   descricao   String?
   preco       Float
+  disponivel  Boolean      @default(true) 
   pedidosItem PedidoItem[]
   categoria   Categoria @relation(fields: [categoriaId], references: [id])
   categoriaId Int
