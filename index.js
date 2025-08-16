@@ -336,9 +336,83 @@ app.post('/admin/categoria', authenticateToken, async (req, res) => {
     }
 });
 
+// ======================================================================
+// ✅ INÍCIO DA ADIÇÃO DAS NOVAS ROTAS
+// ======================================================================
+
+// Editar/Atualizar o nome de uma categoria
+app.put('/admin/categoria/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const { nome } = req.body;
+
+    if (!nome || nome.trim() === '') {
+        return res.status(400).json({ message: 'O nome da categoria é obrigatório.' });
+    }
+
+    try {
+        const categoriaAtualizada = await prisma.categoria.update({
+            where: { id: Number(id) },
+            data: { nome: nome.trim() }
+        });
+        res.json(categoriaAtualizada);
+    } catch (error) {
+        // Prisma lança um erro se o registro a ser atualizado não for encontrado
+        console.error("Erro ao atualizar categoria:", error);
+        res.status(404).json({ message: 'Categoria não encontrada.' });
+    }
+});
+
+// Excluir uma categoria
+app.delete('/admin/categoria/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // Passo 1: Verificar se algum item usa esta categoria
+        const itemCount = await prisma.item.count({
+            where: { categoriaId: Number(id) }
+        });
+
+        // Se houver itens, impede a exclusão e informa o usuário
+        if (itemCount > 0) {
+            return res.status(400).json({ 
+                message: `Não é possível excluir esta categoria, pois ${itemCount} item(ns) estão associados a ela.` 
+            });
+        }
+
+        // Passo 2: Se não houver itens, exclui a categoria
+        await prisma.categoria.delete({
+            where: { id: Number(id) }
+        });
+
+        res.json({ message: 'Categoria excluída com sucesso.' });
+    } catch (error) {
+        // Prisma lança um erro se o registro a ser excluído não for encontrado
+        console.error("Erro ao excluir categoria:", error);
+        res.status(404).json({ message: 'Categoria não encontrada.' });
+    }
+});
+
+// ======================================================================
+// ✅ FIM DA ADIÇÃO
+// ======================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Adicionar item ao cardápio
 app.post('/admin/item', authenticateToken, async (req, res) => {
-    const { nome, descricao, preco, categoriaId } = req.body;
+    const { nome, descricao, preco, categoriaId, imagemUrl} = req.body;
 
     if (!nome || !preco || !categoriaId) {
         return res.status(400).json({ error: 'Nome, preço e categoria são obrigatórios.' });
@@ -350,6 +424,7 @@ app.post('/admin/item', authenticateToken, async (req, res) => {
                 nome,
                 descricao,
                 preco,
+                imagemUrl,
                 categoria: {
                     connect: { id: Number(categoriaId) }
                 }
@@ -376,12 +451,12 @@ app.get('/admin/items', authenticateToken, async (req, res) => {
 
 // Editar item do cardápio
 app.put('/admin/item/:id', authenticateToken, async (req, res) => {
-    const { nome, descricao, preco, disponivel } = req.body;
+    const { nome, descricao, preco, disponivel, imagemUrl} = req.body;
     const { id } = req.params;
 
     const item = await prisma.item.update({
         where: { id: Number(id) },
-        data: { nome, descricao, preco, disponivel }
+        data: { nome, descricao, preco, disponivel, imagemUrl }
     });
 
     res.json(item);
