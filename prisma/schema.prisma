@@ -60,3 +60,8 @@ model Horarios {
   inicio      String
   fim         String
 }
+
+model Entrega {
+  id          Int   @id @default(autoincrement())
+  taxaEntrega Float
+}
