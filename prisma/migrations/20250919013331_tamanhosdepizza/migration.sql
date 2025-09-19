@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Item" ADD COLUMN "precoG" REAL;
+ALTER TABLE "Item" ADD COLUMN "precoGG" REAL;
+ALTER TABLE "Item" ADD COLUMN "precoM" REAL;
+ALTER TABLE "Item" ADD COLUMN "precoP" REAL;

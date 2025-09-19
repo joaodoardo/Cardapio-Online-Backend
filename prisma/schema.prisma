@@ -24,6 +24,10 @@ model Item {
   nome        String
   descricao   String?
   preco       Float
+  precoP       Float?
+  precoM       Float?
+  precoG       Float?
+  precoGG      Float?
   imagemUrl   String?     
   disponivel  Boolean      @default(true) 
   pedidosItem PedidoItem[]
@@ -51,6 +55,8 @@ model PedidoItem {
   item     Item   @relation(fields: [itemId], references: [id])
   itemId   Int
   quantidade Int
+  tamanho    String? 
+  precoFinal Float?  
 }
 
 model Horarios {

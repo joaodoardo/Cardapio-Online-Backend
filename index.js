@@ -82,7 +82,9 @@ app.post('/pedido', async (req, res) => {
             itens: {
                 create: itens.map(item => ({
                     itemId: item.itemId,
-                    quantidade: item.quantidade
+                    quantidade: item.quantidade,
+                    tamanho: item.tamanho,      
+                    precoFinal: item.precoFinal 
                 }))
             }
         }
@@ -154,6 +156,51 @@ app.get('/pedidos/cliente/:telefone', async (req, res) => {
 
 
 
+
+
+// ======================================================================
+// ✅ INÍCIO DA ADIÇÃO - ROTAS DE FRETE (ENTREGA)
+// ======================================================================
+
+// Rota PÚBLICA para buscar a taxa de entrega
+app.get('/entrega', async (req, res) => {
+    try {
+        const entrega = await prisma.entrega.findFirst();
+        if (!entrega) {
+            // Se por algum motivo não houver taxa, retorna um erro ou um valor padrão
+            return res.status(404).json({ error: 'Taxa de entrega não configurada.' });
+        }
+        res.json(entrega);
+    } catch (error) {
+        console.error("Erro ao buscar taxa de entrega:", error);
+        res.status(500).json({ error: 'Erro interno ao buscar taxa de entrega.' });
+    }
+});
+
+// Rota PROTEGIDA para atualizar a taxa de entrega
+app.put('/admin/entrega/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const { taxaEntrega } = req.body;
+
+    if (taxaEntrega === undefined || taxaEntrega === null || isNaN(parseFloat(taxaEntrega))) {
+        return res.status(400).json({ error: 'O valor da taxa de entrega é inválido.' });
+    }
+
+    try {
+        const entregaAtualizada = await prisma.entrega.update({
+            where: { id: Number(id) },
+            data: { taxaEntrega: parseFloat(taxaEntrega) },
+        });
+        res.json(entregaAtualizada);
+    } catch (error) {
+        console.error("Erro ao atualizar taxa de entrega:", error);
+        res.status(404).json({ error: 'Registro de entrega não encontrado.' });
+    }
+});
+
+// ======================================================================
+// ✅ FIM DA ADIÇÃO
+// ======================================================================
 
 
 
@@ -410,9 +457,17 @@ app.delete('/admin/categoria/:id', authenticateToken, async (req, res) => {
 
 
 
+// ======================================================================
+// ✅ INÍCIO DA ALTERAÇÃO
+// ======================================================================
+
 // Adicionar item ao cardápio
 app.post('/admin/item', authenticateToken, async (req, res) => {
-    const { nome, descricao, preco, categoriaId, imagemUrl} = req.body;
+    // 1. Extrai todos os campos de preço do corpo da requisição
+    const { 
+        nome, descricao, preco, categoriaId, imagemUrl,
+        precoP, precoM, precoG, precoGG 
+    } = req.body;
 
     if (!nome || !preco || !categoriaId) {
         return res.status(400).json({ error: 'Nome, preço e categoria são obrigatórios.' });
@@ -423,8 +478,13 @@ app.post('/admin/item', authenticateToken, async (req, res) => {
             data: {
                 nome,
                 descricao,
-                preco,
+                preco, // O preço principal (base)
                 imagemUrl,
+                // 2. Adiciona os preços por tamanho (serão salvos como null se não forem enviados)
+                precoP,
+                precoM,
+                precoG,
+                precoGG,
                 categoria: {
                     connect: { id: Number(categoriaId) }
                 }
@@ -433,6 +493,7 @@ app.post('/admin/item', authenticateToken, async (req, res) => {
 
         res.status(201).json(item);
     } catch (error) {
+        console.error("Erro ao criar item:", error);
         res.status(500).json({ error: 'Erro ao criar item. Verifique o ID da categoria.' });
     }
 });
@@ -451,16 +512,39 @@ app.get('/admin/items', authenticateToken, async (req, res) => {
 
 // Editar item do cardápio
 app.put('/admin/item/:id', authenticateToken, async (req, res) => {
-    const { nome, descricao, preco, disponivel, imagemUrl} = req.body;
+    // 1. Extrai todos os campos, incluindo os de pizza
+    const { 
+        nome, descricao, preco, disponivel, imagemUrl,
+        precoP, precoM, precoG, precoGG
+    } = req.body;
     const { id } = req.params;
 
-    const item = await prisma.item.update({
-        where: { id: Number(id) },
-        data: { nome, descricao, preco, disponivel, imagemUrl }
-    });
-
-    res.json(item);
+    try {
+        const item = await prisma.item.update({
+            where: { id: Number(id) },
+            // 2. Inclui todos os campos no objeto 'data' para serem atualizados
+            data: { 
+                nome, 
+                descricao, 
+                preco, 
+                disponivel, 
+                imagemUrl,
+                precoP,
+                precoM,
+                precoG,
+                precoGG
+            }
+        });
+        res.json(item);
+    } catch(error) {
+        console.error("Erro ao editar item:", error);
+        res.status(404).json({ error: 'Item não encontrado.' });
+    }
 });
+
+// ======================================================================
+// ✅ FIM DA ALTERAÇÃO
+// ======================================================================
 
 // Excluir item do cardápio
 app.delete('/admin/item/:id', authenticateToken, async (req, res) => {
@@ -607,6 +691,26 @@ app.listen(PORT, async () => {
             data: defaultSchedule,
         });
         console.log('Horários padrão criados com sucesso.');
+    }
+    // ======================================================================
+    // ✅ FIM DA ADIÇÃO
+    // ======================================================================
+
+
+
+    // ======================================================================
+    // ✅ INÍCIO DA ADIÇÃO - LÓGICA PARA POPULAR TAXA DE ENTREGA
+    // ======================================================================
+    // Inicializar taxa de entrega padrão se não existir
+    const totalEntregas = await prisma.entrega.count();
+    if (totalEntregas === 0) {
+        console.log('Nenhuma taxa de entrega encontrada. Criando taxa padrão...');
+        await prisma.entrega.create({
+            data: {
+                taxaEntrega: 5.00 // Defina um valor padrão
+            }
+        });
+        console.log('Taxa de entrega padrão (R$ 5.00) criada com sucesso.');
     }
     // ======================================================================
     // ✅ FIM DA ADIÇÃO
