@@ -46,6 +46,7 @@ model Pedido {
   status       Int           @default(1)
   metodoPagamento String?
   trocoPara       Float?
+  taxaEntrega     Float? 
 }
 
 model PedidoItem {

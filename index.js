@@ -65,7 +65,7 @@ app.get('/categorias/:id/itens', async (req, res) => {
 });
 
 app.post('/pedido', async (req, res) => {
-    const { nomeCliente, telefone, endereco, observacoes, itens, metodoPagamento, trocoPara } = req.body;
+    const { nomeCliente, telefone, endereco, observacoes, itens, metodoPagamento, trocoPara, taxaEntrega} = req.body;
     
     if (!nomeCliente || !telefone || !endereco || !Array.isArray(itens) || itens.length === 0 || !metodoPagamento) {
         return res.status(400).json({ error: 'Dados do pedido inválidos. Informações do cliente, itens e método de pagamento são obrigatórios.' });
@@ -78,6 +78,7 @@ app.post('/pedido', async (req, res) => {
             endereco,
             observacoes,
             metodoPagamento,
+            taxaEntrega: taxaEntrega || 0,
             trocoPara: trocoPara ? parseFloat(trocoPara) : null,
             itens: {
                 create: itens.map(item => ({
@@ -117,24 +118,20 @@ app.get('/pedidos/cliente/:telefone', async (req, res) => {
             where: {
                 telefone: telefone
             },
-            // Incluímos os itens para que o cliente possa ver o que pediu
             include: {
                 itens: {
                     include: {
-                        item: {
+                        item: { // Mantemos para pegar o nome do item
                             select: {
-                                nome: true,
-                                preco: true
+                                nome: true
                             }
                         }
                     }
                 }
             },
-            // Ordenamos pelos mais recentes primeiro
             orderBy: {
                 criadoEm: 'desc'
             },
-            // Limitamos a busca aos últimos 10 pedidos para não sobrecarregar
             take: 10
         });
 
