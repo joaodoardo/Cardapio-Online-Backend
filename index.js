@@ -49,7 +49,11 @@ app.get('/categorias/:id/itens', async (req, res) => {
             where: { id: Number(id) },
             include: {
                 itens: {
-                    where: { disponivel: true }
+                    where: { disponivel: true },
+                    orderBy: [
+                        { order: 'asc' },
+                        { id: 'asc' }
+                    ]
                 }
             }
         });
@@ -84,8 +88,11 @@ app.post('/pedido', async (req, res) => {
                 create: itens.map(item => ({
                     itemId: item.itemId,
                     quantidade: item.quantidade,
-                    tamanho: item.tamanho,      
-                    precoFinal: item.precoFinal 
+                    tamanho: item.tamanho,
+                    precoFinal: item.precoFinal,
+                    bordaId: item.bordaId || null,
+                    precoBorda: item.precoBorda ? parseFloat(item.precoBorda) : null,
+                    tipoMassaId: item.tipoMassaId || null
                 }))
             }
         }
@@ -121,11 +128,13 @@ app.get('/pedidos/cliente/:telefone', async (req, res) => {
             include: {
                 itens: {
                     include: {
-                        item: { // Mantemos para pegar o nome do item
+                        item: {
                             select: {
                                 nome: true
                             }
-                        }
+                        },
+                        borda: true,
+                        tipoMassa: true
                     }
                 }
             },
@@ -243,9 +252,11 @@ app.get('/admin/pedidos', authenticateToken, async (req, res) => {
                 }
             },
             include: {
-                itens: { // Inclui os itens de cada pedido
+                itens: {
                     include: {
-                        item: true // Inclui os detalhes de cada item (nome, preço, etc.)
+                        item: true,
+                        borda: true,
+                        tipoMassa: true
                     }
                 }
             },
@@ -265,7 +276,7 @@ app.put('/admin/pedidos/:id/status', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!status || ![1, 2, 3, 4].includes(status)) { // Adicionamos 4 como um status de "finalizado"
+    if (!status || ![1, 2, 3, 4, 5].includes(status)) { // 1=Em análise, 2=Na Fila, 3=Pronto, 4=Finalizado, 5=Cancelado
         return res.status(400).json({ error: 'Status inválido.' });
     }
 
@@ -331,17 +342,41 @@ app.get('/horarios', async (req, res) => {
 // ======================================================================
 
 
+// ======================================================================
+// ✅ INÍCIO DA ADIÇÃO - ROTAS PÚBLICAS PARA BORDAS E TIPOS DE MASSA
+// ======================================================================
 
+// Listar todas as bordas disponíveis (rota pública)
+app.get('/bordas', async (req, res) => {
+    try {
+        const bordas = await prisma.borda.findMany({
+            where: { disponivel: true },
+            orderBy: { nome: 'asc' }
+        });
+        res.json(bordas);
+    } catch (error) {
+        console.error("Erro ao buscar bordas:", error);
+        res.status(500).json({ error: 'Erro ao buscar bordas.' });
+    }
+});
 
+// Listar todos os tipos de massa disponíveis (rota pública)
+app.get('/tipos-massa', async (req, res) => {
+    try {
+        const tiposMassa = await prisma.tipoMassa.findMany({
+            where: { disponivel: true },
+            orderBy: { nome: 'asc' }
+        });
+        res.json(tiposMassa);
+    } catch (error) {
+        console.error("Erro ao buscar tipos de massa:", error);
+        res.status(500).json({ error: 'Erro ao buscar tipos de massa.' });
+    }
+});
 
-
-
-
-
-
-
-
-
+// ======================================================================
+// ✅ FIM DA ADIÇÃO
+// ======================================================================
 
 
 
@@ -461,9 +496,10 @@ app.delete('/admin/categoria/:id', authenticateToken, async (req, res) => {
 // Adicionar item ao cardápio
 app.post('/admin/item', authenticateToken, async (req, res) => {
     // 1. Extrai todos os campos de preço do corpo da requisição
-    const { 
+    const {
         nome, descricao, preco, categoriaId, imagemUrl,
-        precoP, precoM, precoG, precoGG 
+        precoP, precoM, precoG, precoGG,
+        precoPComBorda, precoMComBorda, precoGComBorda, precoGGComBorda
     } = req.body;
 
     if (!nome || !preco || !categoriaId) {
@@ -482,6 +518,11 @@ app.post('/admin/item', authenticateToken, async (req, res) => {
                 precoM,
                 precoG,
                 precoGG,
+                // 3. Adiciona os preços com borda por tamanho
+                precoPComBorda,
+                precoMComBorda,
+                precoGComBorda,
+                precoGGComBorda,
                 categoria: {
                     connect: { id: Number(categoriaId) }
                 }
@@ -499,7 +540,14 @@ app.post('/admin/item', authenticateToken, async (req, res) => {
 app.get('/admin/items', authenticateToken, async (req, res) => {
     try {
         const items = await prisma.item.findMany({
-            orderBy: { nome: 'asc' } 
+            include: {
+                categoria: true
+            },
+            orderBy: [
+                { categoriaId: 'asc' },
+                { order: 'asc' },
+                { id: 'asc' }
+            ]
         });
         res.json(items);
     } catch (error) {
@@ -510,9 +558,10 @@ app.get('/admin/items', authenticateToken, async (req, res) => {
 // Editar item do cardápio
 app.put('/admin/item/:id', authenticateToken, async (req, res) => {
     // 1. Extrai todos os campos, incluindo os de pizza
-    const { 
+    const {
         nome, descricao, preco, disponivel, imagemUrl,
-        precoP, precoM, precoG, precoGG
+        precoP, precoM, precoG, precoGG,
+        precoPComBorda, precoMComBorda, precoGComBorda, precoGGComBorda
     } = req.body;
     const { id } = req.params;
 
@@ -520,16 +569,20 @@ app.put('/admin/item/:id', authenticateToken, async (req, res) => {
         const item = await prisma.item.update({
             where: { id: Number(id) },
             // 2. Inclui todos os campos no objeto 'data' para serem atualizados
-            data: { 
-                nome, 
-                descricao, 
-                preco, 
-                disponivel, 
+            data: {
+                nome,
+                descricao,
+                preco,
+                disponivel,
                 imagemUrl,
                 precoP,
                 precoM,
                 precoG,
-                precoGG
+                precoGG,
+                precoPComBorda,
+                precoMComBorda,
+                precoGComBorda,
+                precoGGComBorda
             }
         });
         res.json(item);
@@ -558,6 +611,97 @@ app.delete('/admin/item/:id', authenticateToken, async (req, res) => {
     }
 });
 
+// ======================================================================
+// ✅ INÍCIO DA ADIÇÃO - ROTA PARA MOVER ITENS (REORDENAR)
+// ======================================================================
+
+// Mover item para cima ou para baixo na ordem
+app.patch('/admin/item/:id/move', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const { direction } = req.body;
+
+    if (!direction || !['up', 'down'].includes(direction)) {
+        return res.status(400).json({ error: 'Direção inválida. Use "up" ou "down".' });
+    }
+
+    try {
+        // Buscar o item atual
+        const itemAtual = await prisma.item.findUnique({
+            where: { id: Number(id) }
+        });
+
+        if (!itemAtual) {
+            return res.status(404).json({ error: 'Item não encontrado.' });
+        }
+
+        // Buscar todos os itens da mesma categoria ordenados
+        const todosItens = await prisma.item.findMany({
+            where: { categoriaId: itemAtual.categoriaId },
+            orderBy: [
+                { order: 'asc' },
+                { id: 'asc' }
+            ]
+        });
+
+        // Encontrar o índice do item atual
+        const indiceAtual = todosItens.findIndex(item => item.id === itemAtual.id);
+
+        // Verificar se pode mover
+        if (direction === 'up' && indiceAtual === 0) {
+            return res.json({
+                message: 'Item já está no topo da lista.',
+                item: itemAtual
+            });
+        }
+
+        if (direction === 'down' && indiceAtual === todosItens.length - 1) {
+            return res.json({
+                message: 'Item já está no final da lista.',
+                item: itemAtual
+            });
+        }
+
+        // Encontrar o item vizinho
+        const indiceVizinho = direction === 'up' ? indiceAtual - 1 : indiceAtual + 1;
+        const itemVizinho = todosItens[indiceVizinho];
+
+        // Usar valores únicos baseados no índice para evitar duplicatas
+        // Se estiverem com mesmo order, precisamos dar valores diferentes
+        const novoOrderAtual = indiceVizinho * 10;
+        const novoOrderVizinho = indiceAtual * 10;
+
+        // Trocar os valores de order usando uma transação
+        await prisma.$transaction([
+            prisma.item.update({
+                where: { id: itemAtual.id },
+                data: { order: novoOrderAtual }
+            }),
+            prisma.item.update({
+                where: { id: itemVizinho.id },
+                data: { order: novoOrderVizinho }
+            })
+        ]);
+
+        // Buscar o item atualizado
+        const itemAtualizado = await prisma.item.findUnique({
+            where: { id: Number(id) }
+        });
+
+        res.json({
+            message: 'Item movido com sucesso.',
+            item: itemAtualizado
+        });
+
+    } catch (error) {
+        console.error("Erro ao mover item:", error);
+        res.status(500).json({ error: 'Erro ao mover item.' });
+    }
+});
+
+// ======================================================================
+// ✅ FIM DA ADIÇÃO
+// ======================================================================
+
 // Listar todos os pedidos finalizados (histórico)
 app.get('/admin/pedidos/historico', authenticateToken, async (req, res) => {
     try {
@@ -568,7 +712,9 @@ app.get('/admin/pedidos/historico', authenticateToken, async (req, res) => {
             include: {
                 itens: {
                     include: {
-                        item: true
+                        item: true,
+                        borda: true,
+                        tipoMassa: true
                     }
                 }
             },
@@ -643,8 +789,163 @@ app.post('/admin/horarios', authenticateToken, async (req, res) => {
 
 
 
+// ======================================================================
+// ✅ INÍCIO DA ADIÇÃO - ROTAS ADMIN PARA BORDAS
+// ======================================================================
+
+// Listar todas as bordas (incluindo indisponíveis) - Admin
+app.get('/admin/bordas', authenticateToken, async (req, res) => {
+    try {
+        const bordas = await prisma.borda.findMany({
+            orderBy: { nome: 'asc' }
+        });
+        res.json(bordas);
+    } catch (error) {
+        console.error("Erro ao buscar bordas:", error);
+        res.status(500).json({ error: 'Erro ao buscar bordas.' });
+    }
+});
+
+// Criar uma nova borda - Admin
+app.post('/admin/borda', authenticateToken, async (req, res) => {
+    const { nome, precoP, precoM, precoG, precoGG } = req.body;
+
+    if (!nome || precoP === undefined || precoM === undefined || precoG === undefined || precoGG === undefined) {
+        return res.status(400).json({ error: 'Nome e preços para todos os tamanhos são obrigatórios.' });
+    }
+
+    try {
+        const borda = await prisma.borda.create({
+            data: {
+                nome,
+                precoP: parseFloat(precoP),
+                precoM: parseFloat(precoM),
+                precoG: parseFloat(precoG),
+                precoGG: parseFloat(precoGG),
+            }
+        });
+        res.status(201).json(borda);
+    } catch (error) {
+        console.error("Erro ao criar borda:", error);
+        res.status(500).json({ error: 'Erro ao criar borda.' });
+    }
+});
+
+// Editar uma borda - Admin
+app.put('/admin/borda/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const { nome, precoP, precoM, precoG, precoGG, disponivel } = req.body;
+
+    try {
+        const borda = await prisma.borda.update({
+            where: { id: Number(id) },
+            data: {
+                nome,
+                precoP: parseFloat(precoP),
+                precoM: parseFloat(precoM),
+                precoG: parseFloat(precoG),
+                precoGG: parseFloat(precoGG),
+                disponivel
+            }
+        });
+        res.json(borda);
+    } catch (error) {
+        console.error("Erro ao editar borda:", error);
+        res.status(404).json({ error: 'Borda não encontrada.' });
+    }
+});
+
+// Excluir uma borda - Admin
+app.delete('/admin/borda/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        await prisma.borda.delete({
+            where: { id: Number(id) }
+        });
+        res.json({ message: 'Borda excluída com sucesso.' });
+    } catch (error) {
+        console.error("Erro ao excluir borda:", error);
+        res.status(404).json({ error: 'Borda não encontrada.' });
+    }
+});
+
+// ======================================================================
+// ✅ FIM DA ADIÇÃO
+// ======================================================================
 
 
+// ======================================================================
+// ✅ INÍCIO DA ADIÇÃO - ROTAS ADMIN PARA TIPOS DE MASSA
+// ======================================================================
+
+// Listar todos os tipos de massa (incluindo indisponíveis) - Admin
+app.get('/admin/tipos-massa', authenticateToken, async (req, res) => {
+    try {
+        const tiposMassa = await prisma.tipoMassa.findMany({
+            orderBy: { nome: 'asc' }
+        });
+        res.json(tiposMassa);
+    } catch (error) {
+        console.error("Erro ao buscar tipos de massa:", error);
+        res.status(500).json({ error: 'Erro ao buscar tipos de massa.' });
+    }
+});
+
+// Criar um novo tipo de massa - Admin
+app.post('/admin/tipo-massa', authenticateToken, async (req, res) => {
+    const { nome } = req.body;
+
+    if (!nome) {
+        return res.status(400).json({ error: 'Nome do tipo de massa é obrigatório.' });
+    }
+
+    try {
+        const tipoMassa = await prisma.tipoMassa.create({
+            data: { nome }
+        });
+        res.status(201).json(tipoMassa);
+    } catch (error) {
+        console.error("Erro ao criar tipo de massa:", error);
+        res.status(500).json({ error: 'Erro ao criar tipo de massa.' });
+    }
+});
+
+// Editar um tipo de massa - Admin
+app.put('/admin/tipo-massa/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const { nome, disponivel } = req.body;
+
+    try {
+        const tipoMassa = await prisma.tipoMassa.update({
+            where: { id: Number(id) },
+            data: { nome, disponivel }
+        });
+        res.json(tipoMassa);
+    } catch (error) {
+        console.error("Erro ao editar tipo de massa:", error);
+        res.status(404).json({ error: 'Tipo de massa não encontrado.' });
+    }
+});
+
+// Excluir um tipo de massa - Admin
+app.delete('/admin/tipo-massa/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        await prisma.tipoMassa.delete({
+            where: { id: Number(id) }
+        });
+        res.json({ message: 'Tipo de massa excluído com sucesso.' });
+    } catch (error) {
+        console.error("Erro ao excluir tipo de massa:", error);
+        res.status(404).json({ error: 'Tipo de massa não encontrado.' });
+    }
+});
+
+// ======================================================================
+// ✅ FIM DA ADIÇÃO
+// ======================================================================
 
 
 
@@ -708,6 +1009,44 @@ app.listen(PORT, async () => {
             }
         });
         console.log('Taxa de entrega padrão (R$ 5.00) criada com sucesso.');
+    }
+    // ======================================================================
+    // ✅ FIM DA ADIÇÃO
+    // ======================================================================
+
+
+    // ======================================================================
+    // ✅ INÍCIO DA ADIÇÃO - LÓGICA PARA POPULAR BORDAS E TIPOS DE MASSA
+    // ======================================================================
+    // Inicializar bordas padrão se não existirem
+    const totalBordas = await prisma.borda.count();
+    if (totalBordas === 0) {
+        console.log('Nenhuma borda encontrada. Criando bordas padrão...');
+        const defaultBordas = [
+            { nome: 'Catupiry', precoP: 3.00, precoM: 4.00, precoG: 5.00, precoGG: 6.00 },
+            { nome: 'Cheddar', precoP: 3.50, precoM: 4.50, precoG: 5.50, precoGG: 6.50 },
+        ];
+
+        await prisma.borda.createMany({
+            data: defaultBordas,
+        });
+        console.log('Bordas padrão criadas com sucesso.');
+    }
+
+    // Inicializar tipos de massa padrão se não existirem
+    const totalTiposMassa = await prisma.tipoMassa.count();
+    if (totalTiposMassa === 0) {
+        console.log('Nenhum tipo de massa encontrado. Criando tipos padrão...');
+        const defaultTiposMassa = [
+            { nome: 'Fina' },
+            { nome: 'Média' },
+            { nome: 'Grossa' },
+        ];
+
+        await prisma.tipoMassa.createMany({
+            data: defaultTiposMassa,
+        });
+        console.log('Tipos de massa padrão criados com sucesso.');
     }
     // ======================================================================
     // ✅ FIM DA ADIÇÃO
