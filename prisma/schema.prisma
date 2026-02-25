@@ -28,11 +28,24 @@ model Item {
   precoM       Float?
   precoG       Float?
   precoGG      Float?
-  imagemUrl   String?     
-  disponivel  Boolean      @default(true) 
+  precoPComBorda   Float?
+  precoMComBorda   Float?
+  precoGComBorda   Float?
+  precoGGComBorda  Float?
+  imagemUrl   String?
+  disponivel  Boolean      @default(true)
+  order       Int          @default(1000)
   pedidosItem PedidoItem[]
   categoria   Categoria @relation(fields: [categoriaId], references: [id])
   categoriaId Int
+}
+
+model SessaoMesa {
+  id         Int       @id @default(autoincrement())
+  mesa       String
+  abertaEm   DateTime  @default(now())
+  fechadaEm  DateTime?
+  pedidos    Pedido[]
 }
 
 model Pedido {
@@ -46,18 +59,25 @@ model Pedido {
   status       Int           @default(1)
   metodoPagamento String?
   trocoPara       Float?
-  taxaEntrega     Float? 
+  taxaEntrega     Float?
+  sessaoMesa   SessaoMesa?  @relation(fields: [sessaoMesaId], references: [id])
+  sessaoMesaId Int?
 }
 
 model PedidoItem {
-  id       Int    @id @default(autoincrement())
-  pedido   Pedido @relation(fields: [pedidoId], references: [id])
-  pedidoId Int
-  item     Item   @relation(fields: [itemId], references: [id])
-  itemId   Int
-  quantidade Int
-  tamanho    String? 
-  precoFinal Float?  
+  id           Int         @id @default(autoincrement())
+  pedido       Pedido      @relation(fields: [pedidoId], references: [id])
+  pedidoId     Int
+  item         Item        @relation(fields: [itemId], references: [id])
+  itemId       Int
+  quantidade   Int
+  tamanho      String?
+  precoFinal   Float?
+  borda        Borda?      @relation(fields: [bordaId], references: [id])
+  bordaId      Int?
+  precoBorda   Float?
+  tipoMassa    TipoMassa?  @relation(fields: [tipoMassaId], references: [id])
+  tipoMassaId  Int?
 }
 
 model Horarios {
@@ -71,4 +91,27 @@ model Horarios {
 model Entrega {
   id          Int   @id @default(autoincrement())
   taxaEntrega Float
+}
+
+model Borda {
+  id          Int          @id @default(autoincrement())
+  nome        String
+  precoP      Float
+  precoM      Float
+  precoG      Float
+  precoGG     Float
+  disponivel  Boolean      @default(true)
+  pedidosItem PedidoItem[]
+}
+
+model TipoMassa {
+  id          Int          @id @default(autoincrement())
+  nome        String
+  disponivel  Boolean      @default(true)
+  pedidosItem PedidoItem[]
+}
+
+model ConfiguracaoLoja {
+  id            Int @id @default(autoincrement())
+  numeroDeMesas Int @default(10)
 }

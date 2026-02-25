@@ -1,0 +1,5 @@
+-- CreateTable
+CREATE TABLE "ConfiguracaoLoja" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "numeroDeMesas" INTEGER NOT NULL DEFAULT 10
+);

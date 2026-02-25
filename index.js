@@ -70,9 +70,25 @@ app.get('/categorias/:id/itens', async (req, res) => {
 
 app.post('/pedido', async (req, res) => {
     const { nomeCliente, telefone, endereco, observacoes, itens, metodoPagamento, trocoPara, taxaEntrega} = req.body;
-    
+
     if (!nomeCliente || !telefone || !endereco || !Array.isArray(itens) || itens.length === 0 || !metodoPagamento) {
         return res.status(400).json({ error: 'Dados do pedido inválidos. Informações do cliente, itens e método de pagamento são obrigatórios.' });
+    }
+
+    // Detecta pedido de mesa e gerencia a sessão automaticamente
+    let sessaoMesaId = null;
+    const mesaMatch = endereco.match(/^Mesa:\s*(.+)$/i);
+    if (mesaMatch) {
+        const mesaNumero = mesaMatch[1].trim();
+        let sessao = await prisma.sessaoMesa.findFirst({
+            where: { mesa: mesaNumero, fechadaEm: null }
+        });
+        if (!sessao) {
+            sessao = await prisma.sessaoMesa.create({
+                data: { mesa: mesaNumero }
+            });
+        }
+        sessaoMesaId = sessao.id;
     }
 
     const pedido = await prisma.pedido.create({
@@ -84,6 +100,7 @@ app.post('/pedido', async (req, res) => {
             metodoPagamento,
             taxaEntrega: taxaEntrega || 0,
             trocoPara: trocoPara ? parseFloat(trocoPara) : null,
+            sessaoMesaId,
             itens: {
                 create: itens.map(item => ({
                     itemId: item.itemId,
@@ -702,6 +719,90 @@ app.patch('/admin/item/:id/move', authenticateToken, async (req, res) => {
 // ✅ FIM DA ADIÇÃO
 // ======================================================================
 
+// ======================================================================
+// ✅ ROTAS PARA CONFIGURAÇÃO DA LOJA (número de mesas)
+// ======================================================================
+app.get('/admin/configuracao', authenticateToken, async (req, res) => {
+    try {
+        const config = await prisma.configuracaoLoja.findFirst();
+        res.json(config);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao buscar configuração.' });
+    }
+});
+
+app.put('/admin/configuracao/:id', authenticateToken, async (req, res) => {
+    const { numeroDeMesas } = req.body;
+    if (!numeroDeMesas || Number(numeroDeMesas) < 1) {
+        return res.status(400).json({ error: 'Número de mesas inválido.' });
+    }
+    try {
+        const config = await prisma.configuracaoLoja.update({
+            where: { id: Number(req.params.id) },
+            data: { numeroDeMesas: Number(numeroDeMesas) }
+        });
+        res.json(config);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao atualizar configuração.' });
+    }
+});
+// ======================================================================
+
+// ======================================================================
+// ✅ INÍCIO DA ADIÇÃO - ROTAS PARA GESTÃO DE MESAS
+// ======================================================================
+
+// Listar todas as sessões de mesa abertas (mesas com pedidos ativos naquela noite)
+app.get('/admin/mesas', authenticateToken, async (req, res) => {
+    try {
+        const sessoes = await prisma.sessaoMesa.findMany({
+            where: { fechadaEm: null },
+            include: {
+                pedidos: {
+                    include: {
+                        itens: {
+                            include: {
+                                item: true,
+                                borda: true,
+                                tipoMassa: true
+                            }
+                        }
+                    },
+                    orderBy: { criadoEm: 'asc' }
+                }
+            },
+            orderBy: { mesa: 'asc' }
+        });
+        res.json(sessoes);
+    } catch (error) {
+        console.error("Erro ao buscar mesas:", error);
+        res.status(500).json({ error: 'Erro ao buscar mesas.' });
+    }
+});
+
+// Fechar uma sessão de mesa (encerra a conta daquela mesa)
+app.post('/admin/sessao/:id/fechar', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const sessao = await prisma.sessaoMesa.findUnique({ where: { id: Number(id) } });
+        if (!sessao) return res.status(404).json({ error: 'Sessão não encontrada.' });
+        if (sessao.fechadaEm) return res.status(400).json({ error: 'Mesa já está fechada.' });
+
+        const sessaoFechada = await prisma.sessaoMesa.update({
+            where: { id: Number(id) },
+            data: { fechadaEm: new Date() }
+        });
+        res.json(sessaoFechada);
+    } catch (error) {
+        console.error("Erro ao fechar mesa:", error);
+        res.status(500).json({ error: 'Erro ao fechar mesa.' });
+    }
+});
+
+// ======================================================================
+// ✅ FIM DA ADIÇÃO - ROTAS PARA GESTÃO DE MESAS
+// ======================================================================
+
 // Listar todos os pedidos finalizados (histórico)
 app.get('/admin/pedidos/historico', authenticateToken, async (req, res) => {
     try {
@@ -1031,6 +1132,13 @@ app.listen(PORT, async () => {
             data: defaultBordas,
         });
         console.log('Bordas padrão criadas com sucesso.');
+    }
+
+    // Inicializar configuração da loja se não existir
+    const totalConfig = await prisma.configuracaoLoja.count();
+    if (totalConfig === 0) {
+        await prisma.configuracaoLoja.create({ data: { numeroDeMesas: 10 } });
+        console.log('Configuração padrão criada (10 mesas).');
     }
 
     // Inicializar tipos de massa padrão se não existirem
