@@ -21,6 +21,8 @@ export class ItensService {
       nome, descricao, preco, categoriaId, imagemUrl,
       precoP, precoM, precoG, precoGG,
       precoPComBorda, precoMComBorda, precoGComBorda, precoGGComBorda,
+      promocaoAtiva, descontoPercent,
+      descontoPPercent, descontoMPercent, descontoGPercent, descontoGGPercent,
     } = data;
 
     if (!nome || !preco || !categoriaId) {
@@ -33,6 +35,12 @@ export class ItensService {
           nome, descricao, preco, imagemUrl,
           precoP, precoM, precoG, precoGG,
           precoPComBorda, precoMComBorda, precoGComBorda, precoGGComBorda,
+          promocaoAtiva: promocaoAtiva ?? false,
+          descontoPercent: descontoPercent ?? null,
+          descontoPPercent: descontoPPercent ?? null,
+          descontoMPercent: descontoMPercent ?? null,
+          descontoGPercent: descontoGPercent ?? null,
+          descontoGGPercent: descontoGGPercent ?? null,
           categoria: { connect: { id: Number(categoriaId) } },
         },
       });
@@ -48,6 +56,8 @@ export class ItensService {
       nome, descricao, preco, disponivel, imagemUrl,
       precoP, precoM, precoG, precoGG,
       precoPComBorda, precoMComBorda, precoGComBorda, precoGGComBorda,
+      promocaoAtiva, descontoPercent,
+      descontoPPercent, descontoMPercent, descontoGPercent, descontoGGPercent,
     } = data;
 
     try {
@@ -57,6 +67,12 @@ export class ItensService {
           nome, descricao, preco, disponivel, imagemUrl,
           precoP, precoM, precoG, precoGG,
           precoPComBorda, precoMComBorda, precoGComBorda, precoGGComBorda,
+          promocaoAtiva: promocaoAtiva ?? false,
+          descontoPercent: descontoPercent !== undefined ? descontoPercent : null,
+          descontoPPercent: descontoPPercent !== undefined ? descontoPPercent : null,
+          descontoMPercent: descontoMPercent !== undefined ? descontoMPercent : null,
+          descontoGPercent: descontoGPercent !== undefined ? descontoGPercent : null,
+          descontoGGPercent: descontoGGPercent !== undefined ? descontoGGPercent : null,
         },
       });
     } catch {

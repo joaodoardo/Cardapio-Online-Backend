@@ -12,7 +12,7 @@ const SECRET = 'seusegredoseguro';
     PassportModule,
     JwtModule.register({
       secret: SECRET,
-      signOptions: { expiresIn: '8h' },
+      signOptions: { expiresIn: '30d' },
     }),
   ],
   controllers: [AuthController],

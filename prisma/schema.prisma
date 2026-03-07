@@ -33,8 +33,14 @@ model Item {
   precoGComBorda   Float?
   precoGGComBorda  Float?
   imagemUrl   String?
-  disponivel  Boolean      @default(true)
-  order       Int          @default(1000)
+  disponivel       Boolean  @default(true)
+  promocaoAtiva       Boolean  @default(false)
+  descontoPercent     Float?
+  descontoPPercent    Float?
+  descontoMPercent    Float?
+  descontoGPercent    Float?
+  descontoGGPercent   Float?
+  order            Int      @default(1000)
   pedidosItem PedidoItem[]
   categoria   Categoria @relation(fields: [categoriaId], references: [id])
   categoriaId Int

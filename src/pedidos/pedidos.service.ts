@@ -114,6 +114,23 @@ export class PedidosService {
     });
   }
 
+  async clearHistorico() {
+    const pedidosFinalizados = await this.prisma.pedido.findMany({
+      where: { status: 4 },
+      select: { id: true },
+    });
+
+    const ids = pedidosFinalizados.map((p) => p.id);
+    if (ids.length === 0) return { deleted: 0 };
+
+    await this.prisma.$transaction([
+      this.prisma.pedidoItem.deleteMany({ where: { pedidoId: { in: ids } } }),
+      this.prisma.pedido.deleteMany({ where: { id: { in: ids } } }),
+    ]);
+
+    return { deleted: ids.length };
+  }
+
   async updateStatus(id: number, status: number) {
     if (!status || ![1, 2, 3, 4, 5].includes(Number(status))) {
       throw new BadRequestException('Status inválido.');

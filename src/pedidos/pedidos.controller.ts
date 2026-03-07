@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Param,
   Body,
   ParseIntPipe,
@@ -45,6 +46,12 @@ export class PedidosAdminController {
   @Get('historico')
   findHistorico() {
     return this.service.findHistorico();
+  }
+
+  @Delete('historico')
+  @HttpCode(HttpStatus.OK)
+  clearHistorico() {
+    return this.service.clearHistorico();
   }
 
   @Get()
